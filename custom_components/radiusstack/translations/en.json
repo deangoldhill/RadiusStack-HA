@@ -1,0 +1,45 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Connect to RadiusStack-HA",
+        "description": "Enter your RadiusStack server details. Generate an API key in the RadiusStack web UI under Administrators.",
+        "data": {
+          "host": "Host / IP Address",
+          "port": "API Port",
+          "api_key": "API Key",
+          "scan_interval": "Poll Interval (seconds)"
+        },
+        "data_description": {
+          "host": "Hostname or IP of the RadiusStack API server",
+          "port": "TCP port — default is 3000",
+          "api_key": "X-API-Key value from the Admins page",
+          "scan_interval": "How often to fetch data in seconds (minimum 5)"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Cannot connect — check host, port and that the API is reachable",
+      "invalid_auth": "Invalid API key — check the key in the Admins page",
+      "unknown": "Unexpected error — check the Home Assistant logs"
+    },
+    "abort": {
+      "already_configured": "This RadiusStack-HA server is already configured"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "RadiusStack-HA Options",
+        "data": {
+          "api_key": "API Key",
+          "scan_interval": "Poll Interval (seconds)"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Cannot connect with the new settings",
+      "invalid_auth": "Invalid API key"
+    }
+  }
+}
