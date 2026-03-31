@@ -10,7 +10,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .api import RadiusStackApi, RadiusStackApiError
-from .const import DOMAIN, DATA_OVERVIEW, DATA_LIVE, DATA_FAILED_AUTH, DATA_ACTIVE_SESSIONS
+from .const import DOMAIN, DATA_OVERVIEW, DATA_FAILED_AUTH, DATA_ACTIVE_SESSIONS, DATA_CONTAINERS
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -31,15 +31,15 @@ class RadiusStackCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         try:
             results = await asyncio.gather(
                 self.api.get_dashboard_overview(),
-                self.api.get_live_stats(),
                 self.api.get_failed_auth(),
                 self.api.get_active_sessions(),
+                self.api.get_containers(),
                 return_exceptions=True,
             )
         except RadiusStackApiError as err:
             raise UpdateFailed(f"RadiusStack-HA API error: {err}") from err
 
-        defaults = [{}, {}, {}, []]
+        defaults = [{}, {}, [], []]
         processed = []
         for i, result in enumerate(results):
             if isinstance(result, Exception):
@@ -49,8 +49,8 @@ class RadiusStackCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 processed.append(result)
 
         return {
-            DATA_OVERVIEW: processed[0],
-            DATA_LIVE: processed[1],
-            DATA_FAILED_AUTH: processed[2],
-            DATA_ACTIVE_SESSIONS: processed[3],
+            DATA_OVERVIEW:        processed[0],
+            DATA_FAILED_AUTH:     processed[1],
+            DATA_ACTIVE_SESSIONS: processed[2],
+            DATA_CONTAINERS:      processed[3],
         }
