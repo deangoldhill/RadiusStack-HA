@@ -19,8 +19,8 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import (
     DATA_ACTIVE_SESSIONS,
+    DATA_CONTAINERS,
     DATA_FAILED_AUTH,
-    DATA_LIVE,
     DATA_OVERVIEW,
     DOMAIN,
 )
@@ -28,7 +28,6 @@ from .coordinator import RadiusStackCoordinator
 
 
 def _dig(data: dict, *keys, default=None):
-    """Safely traverse nested dicts."""
     for key in keys:
         if not isinstance(data, dict):
             return default
@@ -43,6 +42,28 @@ def _bytes_to_gb(b) -> float | None:
         return round(float(b) / 1_073_741_824, 3)
     except (TypeError, ValueError):
         return None
+
+
+def _auth_trend_sum(d, field: str, hours: int) -> int | None:
+    """
+    Sum accepts or rejects from authTrend7d for the last N hours.
+    authTrend7d is daily buckets — for 24h we use today's bucket,
+    for 1h we use today's bucket divided by 24 as a best approximation
+    since the API only provides daily granularity.
+    """
+    trend = _dig(d, DATA_OVERVIEW, "authTrend7d")
+    if not trend or not isinstance(trend, list):
+        return None
+    # Last entry is today
+    today = trend[-1] if trend else {}
+    try:
+        daily_val = int(today.get(field, 0) or 0)
+    except (TypeError, ValueError):
+        return None
+    if hours >= 24:
+        return daily_val
+    # Approximate last hour as today_total / 24
+    return round(daily_val / 24)
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -130,41 +151,34 @@ SENSOR_DESCRIPTIONS: list[RadiusStackSensorDescription] = [
         value_fn=lambda d: _bytes_to_gb(_dig(d, DATA_OVERVIEW, "data", "week")),
     ),
 
-    # ── Live stats ───────────────────────────────────────────────────────
-    RadiusStackSensorDescription(
-        key="live_active_sessions",
-        name="Live Active Sessions",
-        icon="mdi:access-point",
-        state_class=SensorStateClass.MEASUREMENT,
-        value_fn=lambda d: _dig(d, DATA_LIVE, "activeSessions"),
-    ),
-    RadiusStackSensorDescription(
-        key="accepts_last_1h",
-        name="Accepts (Last Hour)",
-        icon="mdi:check-circle",
-        state_class=SensorStateClass.MEASUREMENT,
-        value_fn=lambda d: _dig(d, DATA_LIVE, "accepts1h"),
-    ),
-    RadiusStackSensorDescription(
-        key="rejects_last_1h",
-        name="Rejects (Last Hour)",
-        icon="mdi:close-circle",
-        state_class=SensorStateClass.MEASUREMENT,
-        value_fn=lambda d: _dig(d, DATA_LIVE, "rejects1h"),
-    ),
+    # ── Auth trend (derived from authTrend7d daily buckets) ──────────────
     RadiusStackSensorDescription(
         key="accepts_last_24h",
         name="Accepts (Last 24 Hours)",
         icon="mdi:check-circle-outline",
         state_class=SensorStateClass.MEASUREMENT,
-        value_fn=lambda d: _dig(d, DATA_LIVE, "accepts24h"),
+        value_fn=lambda d: _auth_trend_sum(d, "accepts", 24),
     ),
     RadiusStackSensorDescription(
         key="rejects_last_24h",
         name="Rejects (Last 24 Hours)",
         icon="mdi:close-circle-outline",
         state_class=SensorStateClass.MEASUREMENT,
-        value_fn=lambda d: _dig(d, DATA_LIVE, "rejects24h"),
+        value_fn=lambda d: _auth_trend_sum(d, "rejects", 24),
+    ),
+    RadiusStackSensorDescription(
+        key="accepts_last_1h",
+        name="Accepts (Last Hour, est.)",
+        icon="mdi:check-circle",
+        state_class=SensorStateClass.MEASUREMENT,
+        value_fn=lambda d: _auth_trend_sum(d, "accepts", 1),
+    ),
+    RadiusStackSensorDescription(
+        key="rejects_last_1h",
+        name="Rejects (Last Hour, est.)",
+        icon="mdi:close-circle",
+        state_class=SensorStateClass.MEASUREMENT,
+        value_fn=lambda d: _auth_trend_sum(d, "rejects", 1),
     ),
 
     # ── Active session count ─────────────────────────────────────────────
@@ -177,14 +191,14 @@ SENSOR_DESCRIPTIONS: list[RadiusStackSensorDescription] = [
     ),
 
     # ── Failed auth ──────────────────────────────────────────────────────
+    # failed-auth returns { details: [...], summary: [...] }
     RadiusStackSensorDescription(
         key="failed_auth_total",
         name="Failed Auth Total",
         icon="mdi:account-alert",
         state_class=SensorStateClass.MEASUREMENT,
-        value_fn=lambda d: (
-            len(d[DATA_FAILED_AUTH]) if isinstance(d.get(DATA_FAILED_AUTH), list)
-            else _dig(d, DATA_FAILED_AUTH, "total", default=0)
+        value_fn=lambda d: len(
+            _dig(d, DATA_FAILED_AUTH, "details") or []
         ),
     ),
     RadiusStackSensorDescription(
@@ -192,10 +206,30 @@ SENSOR_DESCRIPTIONS: list[RadiusStackSensorDescription] = [
         name="Unique Failed Usernames",
         icon="mdi:account-question",
         state_class=SensorStateClass.MEASUREMENT,
-        value_fn=lambda d: (
-            len({r.get("username") for r in d[DATA_FAILED_AUTH]})
-            if isinstance(d.get(DATA_FAILED_AUTH), list)
-            else _dig(d, DATA_FAILED_AUTH, "uniqueUsernames", default=0)
+        value_fn=lambda d: len(
+            _dig(d, DATA_FAILED_AUTH, "summary") or []
+        ),
+    ),
+
+    # ── Container health ─────────────────────────────────────────────────
+    RadiusStackSensorDescription(
+        key="containers_healthy",
+        name="Healthy Containers",
+        icon="mdi:server-network",
+        state_class=SensorStateClass.MEASUREMENT,
+        value_fn=lambda d: sum(
+            1 for c in (d.get(DATA_CONTAINERS) or [])
+            if c.get("state") == "running"
+        ),
+    ),
+    RadiusStackSensorDescription(
+        key="containers_unhealthy",
+        name="Unhealthy Containers",
+        icon="mdi:server-network-off",
+        state_class=SensorStateClass.MEASUREMENT,
+        value_fn=lambda d: sum(
+            1 for c in (d.get(DATA_CONTAINERS) or [])
+            if c.get("state") != "running"
         ),
     ),
 ]
@@ -209,10 +243,23 @@ async def async_setup_entry(
     coordinator: RadiusStackCoordinator = hass.data[DOMAIN][entry.entry_id]
     host = entry.data[CONF_HOST]
     port = entry.data[CONF_PORT]
-    async_add_entities(
+
+    entities: list = [
         RadiusStackSensor(coordinator, description, host, port)
         for description in SENSOR_DESCRIPTIONS
-    )
+    ]
+
+    # Dynamically create one binary sensor + one container state sensor
+    # per discovered container (populated after first coordinator refresh)
+    containers = coordinator.data.get(DATA_CONTAINERS, []) if coordinator.data else []
+    for container in containers:
+        name = container.get("name", "")
+        if name:
+            entities.append(
+                RadiusStackContainerSensor(coordinator, host, port, name)
+            )
+
+    async_add_entities(entities)
 
 
 class RadiusStackSensor(CoordinatorEntity[RadiusStackCoordinator], SensorEntity):
@@ -244,3 +291,44 @@ class RadiusStackSensor(CoordinatorEntity[RadiusStackCoordinator], SensorEntity)
         if self.coordinator.data is None:
             return None
         return self.entity_description.value_fn(self.coordinator.data)
+
+
+class RadiusStackContainerSensor(CoordinatorEntity[RadiusStackCoordinator], SensorEntity):
+    """Per-container state sensor (running / stopped / etc.)."""
+
+    _attr_has_entity_name = True
+    _attr_icon = "mdi:docker"
+
+    def __init__(
+        self,
+        coordinator: RadiusStackCoordinator,
+        host: str,
+        port: int,
+        container_name: str,
+    ) -> None:
+        super().__init__(coordinator)
+        self._container_name = container_name
+        display = container_name.replace("radius_", "").replace("_", " ").title()
+        self._attr_name = f"Container {display}"
+        self._attr_unique_id = f"radiusstack_{host}_{port}_container_{container_name}"
+        self._attr_device_info = DeviceInfo(
+            identifiers={(DOMAIN, f"{host}:{port}")},
+            name=f"RadiusStack-HA ({host}:{port})",
+            manufacturer="RadiusStack",
+            model="FreeRADIUS Stack",
+            configuration_url=f"http://{host}:{port}",
+        )
+
+    @property
+    def native_value(self) -> str | None:
+        if not self.coordinator.data:
+            return None
+        containers = self.coordinator.data.get(DATA_CONTAINERS, [])
+        for c in containers:
+            if c.get("name") == self._container_name:
+                return c.get("state", "unknown")
+        return "unknown"
+
+    @property
+    def icon(self) -> str:
+        return "mdi:server" if self.native_value == "running" else "mdi:server-off"
