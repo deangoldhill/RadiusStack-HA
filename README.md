@@ -6,26 +6,34 @@ Home Assistant integration for [RadiusStack](https://github.com/deangoldhill/Rad
 
 ## Sensors
 
-| Sensor | Description |
-|---|---|
-| Total Users | Number of RADIUS users |
-| MAC Auth Devices | Registered MAC bypass devices |
-| NAS Clients | Configured NAS clients |
-| Usage Plans | Number of usage plans |
-| Active Sessions | Current active sessions (overview) |
-| Total Sessions (All Time) | All-time session count |
-| Authentications Today | Access-Accepts today |
-| Auth Rejects Today | Access-Rejects today |
-| Data Used Today | GB transferred today |
-| Data Used This Week | GB transferred this week |
-| Live Active Sessions | Real-time active session count |
-| Accepts (Last Hour) | Auth accepts in last 60 minutes |
-| Rejects (Last Hour) | Auth rejects in last 60 minutes |
-| Accepts (Last 24 Hours) | Auth accepts in last 24 hours |
-| Rejects (Last 24 Hours) | Auth rejects in last 24 hours |
-| Active Session Count | Count from live sessions endpoint |
-| Failed Auth Total | Total failed authentication events |
-| Unique Failed Usernames | Distinct usernames with failures |
+| Sensor | Source | Description |
+|---|---|---|
+| Total Users | Overview | Number of RADIUS users |
+| MAC Auth Devices | Overview | Registered MAC bypass devices |
+| NAS Clients | Overview | Configured NAS clients |
+| Usage Plans | Overview | Number of usage plans |
+| Active Sessions | Overview | Current active sessions |
+| Total Sessions (All Time) | Overview | All-time session count |
+| Authentications Today | Overview | Access-Accepts today |
+| Auth Rejects Today | Overview | Access-Rejects today |
+| Data Used Today | Overview | GB transferred today |
+| Data Used This Week | Overview | GB transferred this week |
+| Accepts (Last Hour) | Live Stats | Exact accepts in last 60 minutes |
+| Rejects (Last Hour) | Live Stats | Exact rejects in last 60 minutes |
+| Accepts (Last 24 Hours) | Live Stats | Exact accepts in last 24 hours |
+| Rejects (Last 24 Hours) | Live Stats | Exact rejects in last 24 hours |
+| Unique Users (Last 24 Hours) | Live Stats | Distinct users seen in last 24 hours |
+| Avg Session Duration | Live Stats | Average session length in minutes |
+| Active Session Count | Sessions | Count from live sessions endpoint |
+| Failed Auth Total | Failed Auth | Total failed authentication records |
+| Unique Failed Usernames | Failed Auth | Distinct usernames with failures |
+| Healthy Containers | System | Containers in running state |
+| Unhealthy Containers | System | Containers not in running state |
+| Container [Name] | System | Per-container state (one per container) |
+
+## Buttons
+
+One **Restart [Container]** button is created per discovered `radius_*` container.
 
 ## Installation
 

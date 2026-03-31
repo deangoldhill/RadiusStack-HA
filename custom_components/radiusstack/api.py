@@ -70,6 +70,9 @@ class RadiusStackApi:
     async def get_dashboard_overview(self) -> dict:
         return await self._get("/api/reports/dashboard-overview")
 
+    async def get_live_stats(self) -> dict:
+        return await self._get("/api/reports/live-stats")
+
     async def get_failed_auth(self) -> dict:
         return await self._get("/api/reports/failed-auth")
 

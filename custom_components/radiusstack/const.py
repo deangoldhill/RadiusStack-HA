@@ -12,6 +12,7 @@ CONF_SCAN_INTERVAL = "scan_interval"
 
 # Coordinator data keys
 DATA_OVERVIEW = "overview"
+DATA_LIVE = "live"
 DATA_FAILED_AUTH = "failed_auth"
 DATA_ACTIVE_SESSIONS = "active_sessions"
 DATA_CONTAINERS = "containers"

@@ -41,7 +41,13 @@ class RadiusStackRestartButton(ButtonEntity):
     _attr_has_entity_name = True
     _attr_icon = "mdi:restart"
 
-    def __init__(self, api: RadiusStackApi, host: str, port: int, container_name: str) -> None:
+    def __init__(
+        self,
+        api: RadiusStackApi,
+        host: str,
+        port: int,
+        container_name: str,
+    ) -> None:
         self._api = api
         self._container_name = container_name
         display = container_name.replace("radius_", "").replace("_", " ").title()
@@ -60,4 +66,8 @@ class RadiusStackRestartButton(ButtonEntity):
             await self._api.restart_container(self._container_name)
             _LOGGER.info("RadiusStack-HA: restarted container %s", self._container_name)
         except RadiusStackApiError as err:
-            _LOGGER.error("RadiusStack-HA: failed to restart %s: %s", self._container_name, err)
+            _LOGGER.error(
+                "RadiusStack-HA: failed to restart %s: %s",
+                self._container_name,
+                err,
+            )
