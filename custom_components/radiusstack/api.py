@@ -43,8 +43,23 @@ class RadiusStackApi:
             raise
         except aiohttp.ClientConnectorError as err:
             raise RadiusStackApiError(f"Cannot connect to {self._base}: {err}") from err
-        except asyncio.TimeoutError as err:
-            raise RadiusStackApiError(f"Timeout connecting to {self._base}") from err
+        except asyncio.TimeoutError:
+            raise RadiusStackApiError(f"Timeout connecting to {self._base}")
+        except Exception as err:
+            raise RadiusStackApiError(f"Unexpected error: {err}") from err
+
+    async def _post(self, path: str) -> Any:
+        url = f"{self._base}{path}"
+        try:
+            async with self._session.post(
+                url, headers=self._headers, timeout=TIMEOUT
+            ) as resp:
+                if resp.status == 401:
+                    raise RadiusStackAuthError("Invalid API key")
+                resp.raise_for_status()
+                return await resp.json()
+        except RadiusStackApiError:
+            raise
         except Exception as err:
             raise RadiusStackApiError(f"Unexpected error: {err}") from err
 
@@ -55,12 +70,16 @@ class RadiusStackApi:
     async def get_dashboard_overview(self) -> dict:
         return await self._get("/api/reports/dashboard-overview")
 
-    async def get_live_stats(self) -> dict:
-        return await self._get("/api/reports/live-stats")
-
     async def get_failed_auth(self) -> dict:
         return await self._get("/api/reports/failed-auth")
 
     async def get_active_sessions(self) -> list:
         data = await self._get("/api/sessions/active", {"limit": "500"})
         return data if isinstance(data, list) else []
+
+    async def get_containers(self) -> list:
+        data = await self._get("/api/system/status")
+        return data if isinstance(data, list) else []
+
+    async def restart_container(self, container_name: str) -> dict:
+        return await self._post(f"/api/system/restart/{container_name}")
