@@ -16,21 +16,14 @@ from .const import CONF_API_KEY, CONF_SCAN_INTERVAL, CONF_TENANT_ID, DEFAULT_POR
 _LOGGER = logging.getLogger(__name__)
 
 
-def _tenant(value: Any) -> int | None:
-    """Allow blank Global scope or a positive selected tenant ID."""
-    if value in (None, ""):
-        return None
-    value = int(value)
-    if value < 1:
-        raise vol.Invalid("Tenant ID must be a positive integer")
-    return value
-
-
+# Zero is the UI-safe Global-scope sentinel.  Do not use a custom callable here:
+# Home Assistant 2026 serializes config schemas for its frontend and rejects it.
+TENANT_ID_VALIDATOR = vol.All(vol.Coerce(int), vol.Range(min=0))
 STEP_USER_SCHEMA = vol.Schema({
     vol.Required(CONF_HOST): str,
     vol.Required(CONF_PORT, default=DEFAULT_PORT): vol.All(int, vol.Range(min=1, max=65535)),
     vol.Required(CONF_API_KEY): str,
-    vol.Optional(CONF_TENANT_ID, default=""): _tenant,
+    vol.Optional(CONF_TENANT_ID, default=0): TENANT_ID_VALIDATOR,
     vol.Required(CONF_SCAN_INTERVAL, default=DEFAULT_SCAN_INTERVAL): vol.All(int, vol.Range(min=MIN_SCAN_INTERVAL)),
 })
 
@@ -43,7 +36,8 @@ class RadiusStackConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     async def async_step_user(self, user_input: dict[str, Any] | None = None):
         errors: dict[str, str] = {}
         if user_input is not None:
-            api = RadiusStackApi(user_input[CONF_HOST], user_input[CONF_PORT], user_input[CONF_API_KEY], user_input.get(CONF_TENANT_ID), async_get_clientsession(self.hass))
+            user_input = {**user_input, CONF_TENANT_ID: int(user_input.get(CONF_TENANT_ID, 0) or 0) or None}
+            api = RadiusStackApi(user_input[CONF_HOST], user_input[CONF_PORT], user_input[CONF_API_KEY], user_input[CONF_TENANT_ID], async_get_clientsession(self.hass))
             try:
                 await api.test_connection()
             except RadiusStackAuthError:
@@ -77,7 +71,8 @@ class RadiusStackOptionsFlow(config_entries.OptionsFlow):
     async def async_step_init(self, user_input: dict[str, Any] | None = None):
         errors: dict[str, str] = {}
         if user_input is not None:
-            api = RadiusStackApi(self._config_entry.data[CONF_HOST], self._config_entry.data[CONF_PORT], user_input[CONF_API_KEY], user_input.get(CONF_TENANT_ID), async_get_clientsession(self.hass))
+            user_input = {**user_input, CONF_TENANT_ID: int(user_input.get(CONF_TENANT_ID, 0) or 0) or None}
+            api = RadiusStackApi(self._config_entry.data[CONF_HOST], self._config_entry.data[CONF_PORT], user_input[CONF_API_KEY], user_input[CONF_TENANT_ID], async_get_clientsession(self.hass))
             try:
                 await api.test_connection()
             except RadiusStackAuthError:
@@ -89,7 +84,7 @@ class RadiusStackOptionsFlow(config_entries.OptionsFlow):
         options = self._config_entry.options
         schema = vol.Schema({
             vol.Required(CONF_API_KEY, default=options.get(CONF_API_KEY, self._config_entry.data.get(CONF_API_KEY, ""))): str,
-            vol.Optional(CONF_TENANT_ID, default=options.get(CONF_TENANT_ID, self._config_entry.data.get(CONF_TENANT_ID, ""))): _tenant,
+            vol.Optional(CONF_TENANT_ID, default=options.get(CONF_TENANT_ID, self._config_entry.data.get(CONF_TENANT_ID)) or 0): TENANT_ID_VALIDATOR,
             vol.Required(CONF_SCAN_INTERVAL, default=options.get(CONF_SCAN_INTERVAL, self._config_entry.data.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL))): vol.All(int, vol.Range(min=MIN_SCAN_INTERVAL)),
         })
         return self.async_show_form(step_id="init", data_schema=schema, errors=errors)
