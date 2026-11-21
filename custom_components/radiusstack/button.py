@@ -11,7 +11,7 @@ from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .api import RadiusStackApi, RadiusStackApiError
-from .const import DATA_CONTAINERS, DOMAIN
+from .const import DATA_SYSTEM_STATUS, DOMAIN
 from .coordinator import RadiusStackCoordinator
 
 _LOGGER = logging.getLogger(__name__)
@@ -26,7 +26,8 @@ async def async_setup_entry(
     host = entry.data[CONF_HOST]
     port = entry.data[CONF_PORT]
 
-    containers = coordinator.data.get(DATA_CONTAINERS, []) if coordinator.data else []
+    status = coordinator.data.get(DATA_SYSTEM_STATUS, {}) if coordinator.data else {}
+    containers = status if isinstance(status, list) else status.get("containers", [])
     entities = [
         RadiusStackRestartButton(coordinator.api, host, port, c["name"])
         for c in containers

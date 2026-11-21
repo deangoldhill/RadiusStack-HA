@@ -1,88 +1,77 @@
-"""API client for RadiusStack-HA."""
+"""Async API client for RadiusStack-HA."""
 from __future__ import annotations
 
 import asyncio
-import logging
 from typing import Any
 
 import aiohttp
 
-_LOGGER = logging.getLogger(__name__)
 TIMEOUT = aiohttp.ClientTimeout(total=15)
 
 
 class RadiusStackApiError(Exception):
-    """Generic API error."""
+    """Generic RadiusStack API error."""
 
 
 class RadiusStackAuthError(RadiusStackApiError):
-    """Authentication / authorisation error."""
+    """Authentication or authorisation error."""
 
 
 class RadiusStackApi:
-    """Async wrapper around the RadiusStack REST API."""
+    """Read-only async wrapper around documented RadiusStack API endpoints."""
 
-    def __init__(self, host: str, port: int, api_key: str, session: aiohttp.ClientSession) -> None:
+    def __init__(self, host: str, port: int, api_key: str, tenant_id: int | None, session: aiohttp.ClientSession) -> None:
         self._base = f"http://{host}:{port}"
         self._headers = {"X-API-Key": api_key, "Accept": "application/json"}
+        if tenant_id is not None:
+            self._headers["X-Tenant-ID"] = str(tenant_id)
         self._session = session
 
-    async def _get(self, path: str, params: dict | None = None) -> Any:
-        url = f"{self._base}{path}"
-        try:
-            async with self._session.get(
-                url, headers=self._headers, params=params, timeout=TIMEOUT
-            ) as resp:
-                if resp.status == 401:
-                    raise RadiusStackAuthError("Invalid API key")
-                if resp.status == 403:
-                    raise RadiusStackAuthError("Insufficient permissions")
-                resp.raise_for_status()
-                return await resp.json()
-        except RadiusStackApiError:
-            raise
-        except aiohttp.ClientConnectorError as err:
-            raise RadiusStackApiError(f"Cannot connect to {self._base}: {err}") from err
-        except asyncio.TimeoutError:
-            raise RadiusStackApiError(f"Timeout connecting to {self._base}")
-        except Exception as err:
-            raise RadiusStackApiError(f"Unexpected error: {err}") from err
-
     async def _post(self, path: str) -> Any:
-        url = f"{self._base}{path}"
         try:
-            async with self._session.post(
-                url, headers=self._headers, timeout=TIMEOUT
-            ) as resp:
-                if resp.status == 401:
-                    raise RadiusStackAuthError("Invalid API key")
-                resp.raise_for_status()
-                return await resp.json()
+            async with self._session.post(f"{self._base}{path}", headers=self._headers, timeout=TIMEOUT) as response:
+                if response.status in (401, 403):
+                    raise RadiusStackAuthError("API key is invalid or lacks write access")
+                response.raise_for_status()
+                return await response.json()
         except RadiusStackApiError:
             raise
-        except Exception as err:
-            raise RadiusStackApiError(f"Unexpected error: {err}") from err
+        except (aiohttp.ClientError, asyncio.TimeoutError) as err:
+            raise RadiusStackApiError(f"Request to {self._base}{path} failed: {err}") from err
+
+    async def _get(self, path: str, params: dict[str, str] | None = None) -> Any:
+        try:
+            async with self._session.get(f"{self._base}{path}", headers=self._headers, params=params, timeout=TIMEOUT) as response:
+                if response.status in (401, 403):
+                    raise RadiusStackAuthError("API key is invalid or lacks read-only access")
+                response.raise_for_status()
+                return await response.json()
+        except RadiusStackApiError:
+            raise
+        except (aiohttp.ClientError, asyncio.TimeoutError) as err:
+            raise RadiusStackApiError(f"Request to {self._base}{path} failed: {err}") from err
 
     async def test_connection(self) -> bool:
         await self._get("/api/system/status")
         return True
 
-    async def get_dashboard_overview(self) -> dict:
-        return await self._get("/api/reports/dashboard-overview")
-
-    async def get_live_stats(self) -> dict:
-        return await self._get("/api/reports/live-stats")
-
-    async def get_failed_auth(self) -> dict:
-        return await self._get("/api/reports/failed-auth")
-
-    async def get_active_sessions(self) -> list:
+    async def get_dashboard_overview(self) -> dict[str, Any]: return await self._get("/api/reports/dashboard-overview")
+    async def get_live_stats(self) -> dict[str, Any]: return await self._get("/api/reports/live-stats")
+    async def get_failed_auth(self) -> dict[str, Any]: return await self._get("/api/reports/failed-auth")
+    async def get_active_sessions(self) -> list[dict[str, Any]]:
         data = await self._get("/api/sessions/active", {"limit": "500"})
         return data if isinstance(data, list) else []
-
-    async def get_containers(self) -> list:
-        data = await self._get("/api/system/status")
+    async def get_system_status(self) -> dict[str, Any]: return await self._get("/api/system/status")
+    async def get_users(self) -> list[dict[str, Any]]:
+        data = await self._get("/api/users")
         return data if isinstance(data, list) else []
-
-    async def restart_container(self, container_name: str) -> dict:
-        return await self._post(f"/api/system/restart/{container_name}")
+    async def get_nas(self) -> list[dict[str, Any]]:
+        data = await self._get("/api/nas")
+        return data if isinstance(data, list) else []
+    async def get_downstream_destinations(self) -> list[dict[str, Any]]:
+        data = await self._get("/api/downstream-destinations")
+        return data if isinstance(data, list) else []
+    async def get_depleted_allocations(self) -> dict[str, Any]: return await self._get("/api/reports/depleted-allocations", {"view": "summary"})
+    async def get_nas_stats(self, nas_id: int) -> dict[str, Any]: return await self._get(f"/api/nas/{nas_id}/stats", {"window": "day"})
+    async def get_downstream_stats(self, destination_id: int) -> dict[str, Any]: return await self._get(f"/api/downstream-destinations/{destination_id}/stats", {"window": "day"})
+    async def restart_container(self, container_name: str) -> dict[str, Any]: return await self._post(f"/api/system/restart/{container_name}")

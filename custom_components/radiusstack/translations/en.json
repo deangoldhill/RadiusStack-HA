@@ -2,44 +2,17 @@
   "config": {
     "step": {
       "user": {
-        "title": "Connect to RadiusStack-HA",
-        "description": "Enter your RadiusStack server details. Generate an API key in the RadiusStack web UI under Administrators.",
-        "data": {
-          "host": "Host / IP Address",
-          "port": "API Port",
-          "api_key": "API Key",
-          "scan_interval": "Poll Interval (seconds)"
-        },
-        "data_description": {
-          "host": "Hostname or IP of the RadiusStack API server",
-          "port": "TCP port — default is 3000",
-          "api_key": "X-API-Key value from the Admins page",
-          "scan_interval": "How often to fetch data in seconds (minimum 5)"
-        }
+        "title": "Connect to RadiusStack",
+        "description": "Enter a RadiusStack API endpoint and select its Global scope or a tenant.",
+        "data": {"host": "Host / IP address", "port": "API port", "api_key": "API key", "tenant_id": "Tenant ID (optional)", "scan_interval": "Poll interval (seconds)"},
+        "data_description": {"host": "Hostname or IP address of the RadiusStack API", "port": "TCP port; normally 3000", "api_key": "X-API-Key from RadiusStack Administrators", "tenant_id": "Leave empty for Global scope; otherwise a positive RadiusStack tenant ID", "scan_interval": "Minimum 10 seconds"}
       }
     },
-    "error": {
-      "cannot_connect": "Cannot connect — check host, port and that the API is reachable",
-      "invalid_auth": "Invalid API key — check the key in the Admins page",
-      "unknown": "Unexpected error — check the Home Assistant logs"
-    },
-    "abort": {
-      "already_configured": "This RadiusStack-HA server is already configured"
-    }
+    "error": {"cannot_connect": "Cannot connect — check host, port, tenant scope, and API reachability", "invalid_auth": "The API key is invalid or does not have permission for this scope", "unknown": "Unexpected error — check Home Assistant logs"},
+    "abort": {"already_configured": "This RadiusStack host and scope are already configured"}
   },
   "options": {
-    "step": {
-      "init": {
-        "title": "RadiusStack-HA Options",
-        "data": {
-          "api_key": "API Key",
-          "scan_interval": "Poll Interval (seconds)"
-        }
-      }
-    },
-    "error": {
-      "cannot_connect": "Cannot connect with the new settings",
-      "invalid_auth": "Invalid API key"
-    }
+    "step": {"init": {"title": "RadiusStack options", "data": {"api_key": "API key", "tenant_id": "Tenant ID (optional)", "scan_interval": "Poll interval (seconds)"}}},
+    "error": {"cannot_connect": "Cannot connect with the new settings", "invalid_auth": "The API key is invalid or does not have permission for this scope"}
   }
 }
