@@ -52,7 +52,8 @@ class RadiusStackApi:
             raise RadiusStackApiError(f"Request to {self._base}{path} failed: {err}") from err
 
     async def test_connection(self) -> bool:
-        await self._get("/api/system/status")
+        """Validate against the tenant-readable dashboard endpoint, not Global system status."""
+        await self._get("/api/reports/dashboard-overview")
         return True
 
     async def get_dashboard_overview(self) -> dict[str, Any]: return await self._get("/api/reports/dashboard-overview")
